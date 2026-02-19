@@ -1,0 +1,1809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ToggleX for OpenClaw — The Context Layer</title>
+<meta name="description" content="The context layer for OpenClaw. Your AI agent finally knows what you've been working on.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0A0A0A;
+    --surface: #111111;
+    --surface-2: #161616;
+    --surface-3: #1C1C1C;
+    --border: #222222;
+    --border-accent: #333333;
+    --text: #F0F0F0;
+    --text-2: #999999;
+    --text-3: #555555;
+    --mint: #00FFB2;
+    --mint-15: rgba(0, 255, 178, 0.15);
+    --mint-08: rgba(0, 255, 178, 0.08);
+    --mint-04: rgba(0, 255, 178, 0.04);
+    --red: #FF4444;
+    --red-10: rgba(255, 68, 68, 0.1);
+    --amber: #FFAA00;
+    --font-body: 'Sora', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanline effect ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9998;
+  }
+
+  a { color: inherit; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(24px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+  }
+
+  .logo svg { flex-shrink: 0; }
+
+  .logo-label {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .logo-label span { color: var(--text-3); font-weight: 400; }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-link {
+    padding: 6px 14px;
+    font-size: 13px;
+    color: var(--text-2);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .nav-link:hover { color: var(--text); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 24px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-mint {
+    background: var(--mint);
+    color: #000;
+  }
+
+  .btn-mint:hover { filter: brightness(0.9); transform: translateY(-1px); }
+
+  .btn-ghost {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { border-color: var(--border-accent); background: var(--surface-3); }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    padding: 160px 32px 100px;
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+
+  .hero-left { position: relative; z-index: 2; }
+
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mint);
+    margin-bottom: 28px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0, 255, 178, 0.2);
+  }
+
+  .hero-tag svg { animation: spin 8s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  .hero h1 {
+    font-size: clamp(40px, 5.5vw, 68px);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.04em;
+    margin-bottom: 24px;
+  }
+
+  .hero h1 em {
+    font-style: normal;
+    color: var(--mint);
+    position: relative;
+  }
+
+  .hero-desc {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--text-2);
+    max-width: 440px;
+    margin-bottom: 40px;
+    font-weight: 300;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* ── Hero right: context visualizer ── */
+  .ctx-viz {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .ctx-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  .ctx-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--mint);
+  }
+
+  .ctx-status-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--mint);
+    border-radius: 50%;
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .ctx-body { padding: 20px; }
+
+  .ctx-stream {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ctx-event {
+    display: grid;
+    grid-template-columns: 50px 1fr auto;
+    gap: 12px;
+    align-items: start;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border-radius: 8px;
+    font-size: 12px;
+    opacity: 0;
+    animation: slideIn 0.4s ease-out forwards;
+  }
+
+  .ctx-event:nth-child(1) { animation-delay: 0.3s; }
+  .ctx-event:nth-child(2) { animation-delay: 0.7s; }
+  .ctx-event:nth-child(3) { animation-delay: 1.1s; }
+  .ctx-event:nth-child(4) { animation-delay: 1.5s; }
+  .ctx-event:nth-child(5) { animation-delay: 1.9s; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .ctx-time {
+    font-family: var(--font-mono);
+    color: var(--text-3);
+    font-size: 10px;
+    padding-top: 2px;
+  }
+
+  .ctx-content { color: var(--text-2); line-height: 1.5; }
+  .ctx-content strong { color: var(--text); font-weight: 500; }
+
+  .ctx-tag-pill {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .tag-session { background: var(--mint-08); color: var(--mint); }
+  .tag-switch { background: var(--red-10); color: var(--red); }
+  .tag-deep { background: rgba(255, 170, 0, 0.1); color: var(--amber); }
+
+  /* ── SECTION SCAFFOLDING ── */
+  section {
+    position: relative;
+    z-index: 1;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .section-head {
+    margin-bottom: 56px;
+  }
+
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .section-title {
+    font-size: clamp(26px, 3.5vw, 42px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ── HOW IT WORKS ── */
+  .how {
+    padding: 120px 0;
+  }
+
+  .steps-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .step-card {
+    background: var(--surface);
+    padding: 40px 32px;
+    position: relative;
+    transition: background 0.3s;
+  }
+
+  .step-card:hover { background: var(--surface-2); }
+
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 64px;
+    font-weight: 700;
+    color: var(--surface-3);
+    line-height: 1;
+    margin-bottom: 24px;
+    transition: color 0.3s;
+  }
+
+  .step-card:hover .step-num { color: var(--border-accent); }
+
+  .step-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  .step-card:nth-child(1) .step-icon-wrap { background: var(--mint-08); }
+  .step-card:nth-child(2) .step-icon-wrap { background: rgba(255, 170, 0, 0.08); }
+  .step-card:nth-child(3) .step-icon-wrap { background: rgba(100, 140, 255, 0.08); }
+
+  .step-card h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+  }
+
+  .step-card p {
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  .step-est {
+    margin-top: 20px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ── COMPARE ── */
+  .compare {
+    padding: 80px 0;
+  }
+
+  .compare-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .compare-cell {
+    padding: 18px 24px;
+    background: var(--surface);
+  }
+
+  .compare-cell.is-after {
+    background: var(--surface-2);
+    border-left: 2px solid var(--mint);
+  }
+
+  .compare-cell-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .compare-cell:not(.is-after) .compare-cell-tag { color: var(--text-3); }
+  .compare-cell.is-after .compare-cell-tag { color: var(--mint); }
+
+  .compare-prompt {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-2);
+    background: var(--bg);
+    padding: 8px 12px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .prompt-arrow { color: var(--text-3); flex-shrink: 0; }
+
+  .compare-response {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-2);
+  }
+
+  .compare-cell.is-after .compare-response { color: var(--text); }
+
+  .compare-scenario-label {
+    grid-column: 1 / -1;
+    background: var(--bg);
+    padding: 7px 20px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .compare-scenario-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── AUTOPILOT ── */
+  .autopilot {
+    padding: 120px 0;
+  }
+
+  .autopilot-subtitle {
+    font-size: 15px;
+    color: var(--text-2);
+    max-width: 520px;
+    line-height: 1.6;
+    margin-top: 16px;
+    font-weight: 300;
+  }
+
+  .ap-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    margin-top: 64px;
+  }
+
+  .ap-card {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .ap-meta {
+    background: var(--surface);
+    padding: 36px 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .ap-trigger {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ap-trigger-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+  }
+
+  .ap-trigger-dot.cron { background: var(--amber); }
+  .ap-trigger-dot.event { background: var(--mint); }
+  .ap-trigger-dot.alert { background: var(--red); }
+
+  .ap-meta h3 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+
+  .ap-meta p {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.55;
+  }
+
+  .ap-no-prompt {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 16px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--mint);
+    padding: 4px 10px;
+    background: var(--mint-08);
+    border-radius: 4px;
+    width: fit-content;
+  }
+
+  .ap-message-area {
+    background: var(--surface-2);
+    padding: 28px 32px;
+  }
+
+  .ap-msg-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ap-msg-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--mint-15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .ap-msg-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .ap-msg-badge {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    background: var(--mint-08);
+    color: var(--mint);
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+  }
+
+  .ap-msg-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-3);
+    margin-left: auto;
+  }
+
+  .ap-msg-body {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--text);
+  }
+
+  .ap-msg-body .dim { color: var(--text-2); }
+  .ap-msg-body .hl { color: var(--mint); }
+  .ap-msg-body .warn { color: var(--amber); }
+  .ap-msg-body .alert { color: var(--red); }
+
+  .ap-msg-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-2);
+    margin-right: 6px;
+  }
+
+  .ap-msg-stat .val { color: var(--text); font-weight: 600; }
+
+  .ap-you-said-nothing {
+    text-align: center;
+    margin-top: 48px;
+    padding: 20px;
+    border: 1px dashed var(--border-accent);
+    border-radius: 8px;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .ap-you-said-nothing p {
+    font-size: 14px;
+    color: var(--text-2);
+    font-weight: 400;
+  }
+
+  .ap-you-said-nothing span {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  /* ── AGENTIFY ── */
+  .agentify {
+    padding: 80px 0;
+  }
+
+  .agentify-subtitle {
+    font-size: 14px;
+    color: var(--text-2);
+    max-width: 540px;
+    line-height: 1.6;
+    margin-top: 12px;
+    font-weight: 300;
+  }
+
+  .af-demo {
+    margin-top: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 860px;
+  }
+
+  .af-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  .af-phase {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .af-phase:last-child { border-bottom: none; }
+
+  .af-phase-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .af-phase-label.observe { color: var(--text-3); }
+  .af-phase-label.detect { color: var(--amber); }
+  .af-phase-label.propose { color: var(--mint); }
+
+  .af-phase-num {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .af-phase-label.observe .af-phase-num { background: rgba(85,85,85,0.2); color: var(--text-3); }
+  .af-phase-label.detect .af-phase-num { background: rgba(255,170,0,0.1); color: var(--amber); }
+  .af-phase-label.propose .af-phase-num { background: var(--mint-08); color: var(--mint); }
+
+  .af-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .af-activity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 12px;
+    background: var(--surface-2);
+    border-radius: 5px;
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  .af-activity .time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-3);
+    min-width: 44px;
+  }
+
+  .af-activity .app {
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .af-activity .repeated {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgba(255,170,0,0.08);
+    color: var(--amber);
+  }
+
+  .af-pattern {
+    padding: 12px 16px;
+    background: rgba(255,170,0,0.04);
+    border: 1px dashed rgba(255,170,0,0.2);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--amber);
+    line-height: 1.5;
+  }
+
+  .af-pattern .dim { color: var(--text-2); }
+
+  .af-proposal {
+    background: rgba(0,255,178,0.03);
+    border: 1px solid rgba(0,255,178,0.1);
+    border-radius: 8px;
+    padding: 18px;
+  }
+
+  .af-proposal-msg {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .af-proposal-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--mint-15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .af-proposal-body {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .af-proposal-body .dim { color: var(--text-2); }
+  .af-proposal-body .hl { color: var(--mint); }
+
+  .af-pipeline {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+
+  .af-pipe-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text);
+  }
+
+  .af-pipe-step .icon { color: var(--mint); }
+
+  .af-pipe-arrow {
+    color: var(--text-3);
+    font-size: 12px;
+    padding: 0 4px;
+  }
+
+  .af-proposal-actions {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .af-btn-yes {
+    padding: 8px 20px;
+    background: var(--mint);
+    color: #000;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-body);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .af-btn-no {
+    padding: 8px 20px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--font-body);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  /* ── PRICING ── */
+  .pricing {
+    padding: 120px 0;
+  }
+
+  .price-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .price-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .price-box.featured {
+    border-color: var(--mint);
+  }
+
+  .price-save-tag {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: #0A0A0A;
+    background: var(--mint);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+
+  .price-top {
+    padding: 40px 32px 28px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .price-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 12px;
+  }
+
+  .price-value {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .price-value span { font-size: 16px; color: var(--text-3); font-weight: 400; }
+
+  .price-sub {
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 4px;
+  }
+
+  .price-trial-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--mint);
+    margin-top: 12px;
+    display: block;
+  }
+
+  .price-bottom { padding: 28px 28px 32px; }
+
+  .feature-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--text-2);
+  }
+
+  .feature-row:last-of-type { border-bottom: none; margin-bottom: 28px; }
+
+  .feature-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--mint-08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ── FINAL CTA ── */
+  .final-cta {
+    padding: 120px 32px;
+    text-align: center;
+  }
+
+  .final-cta h2 {
+    font-size: clamp(30px, 4.5vw, 52px);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .final-cta p {
+    color: var(--text-2);
+    font-size: 17px;
+    font-weight: 300;
+    margin-bottom: 40px;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px;
+  }
+
+  .footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer-left {
+    font-size: 12px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 20px;
+  }
+
+  .footer-links a {
+    font-size: 12px;
+    color: var(--text-3);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .footer-links a:hover { color: var(--text-2); }
+
+  .footer-note {
+    max-width: 580px;
+    margin: 0 auto 28px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.7;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── PROOF BAR ── */
+  .proof-bar {
+    padding: 32px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .proof-bar-inner {
+    max-width: 800px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .proof-stat {
+    text-align: center;
+  }
+
+  .proof-stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--mint);
+  }
+
+  .proof-stat-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .proof-beta-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--amber);
+    border: 1px solid rgba(255,170,0,0.25);
+    padding: 6px 16px;
+    border-radius: 6px;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── PRIVACY / OBJECTIONS ── */
+  .privacy {
+    padding: 80px 0;
+  }
+
+  .privacy-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 40px;
+    max-width: 760px;
+  }
+
+  .privacy-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+  }
+
+  .privacy-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .privacy-card p {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  /* ── TESTIMONIALS PLACEHOLDER ── */
+  .testimonials {
+    padding: 80px 0;
+  }
+
+  .testimonial-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 40px;
+    max-width: 860px;
+  }
+
+  .testimonial-placeholder {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 32px 24px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  /* ── EMAIL CAPTURE ── */
+  .email-capture {
+    margin-top: 32px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .email-capture input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: var(--font-body);
+    width: 280px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .email-capture input::placeholder { color: var(--text-3); }
+  .email-capture input:focus { border-color: var(--mint); }
+
+  .email-capture button {
+    background: transparent;
+    border: 1px solid var(--mint);
+    color: var(--mint);
+    border-radius: 8px;
+    padding: 14px 24px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .email-capture button:hover {
+    background: rgba(0,255,178,0.08);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; gap: 48px; padding: 130px 24px 60px; }
+    .steps-row { grid-template-columns: 1fr; }
+    .compare-row { grid-template-columns: 1fr; }
+    .compare-cell.is-after { border-left: none; border-top: 2px solid var(--mint); }
+    .ap-card { grid-template-columns: 1fr; }
+    .container { padding: 0 20px; }
+    nav { padding: 0 20px; }
+    .nav-link { display: none; }
+    .price-cards { grid-template-columns: 1fr; max-width: 400px; }
+    .price-top, .price-bottom { padding-left: 24px; padding-right: 24px; }
+    .privacy-grid { grid-template-columns: 1fr; }
+    .testimonial-grid { grid-template-columns: 1fr; }
+    .proof-bar-inner { gap: 24px; }
+    .email-capture input { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#00FFB2"/>
+      <path d="M7 12h4v-4h2v4h4v2h-4v4h-2v-4H7v-2z" fill="#0A0A0A"/>
+    </svg>
+    <div class="logo-label">TOGGLEX <span>/ OPENCLAW</span></div>
+  </a>
+  <div class="nav-right">
+    <a href="#how" class="nav-link">Setup</a>
+    <a href="#autopilot" class="nav-link">Autopilot</a>
+    <a href="#agentify" class="nav-link">Agentify</a>
+    <a href="#pricing" class="nav-link">Pricing</a>
+    <a href="#go" class="btn btn-mint" style="padding: 8px 18px; font-size: 12px;">Get Started</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-tag">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 0L8.8 5.2L14 7L8.8 8.8L7 14L5.2 8.8L0 7L5.2 5.2L7 0Z" fill="#00FFB2"/>
+      </svg>
+      Context layer for OpenClaw
+    </div>
+    <h1>Your agent is<br>working <em>blind</em></h1>
+    <p class="hero-desc">
+      ToggleX watches what you work on and streams structured context to your OpenClaw agent — projects, sessions, decisions, intent. Save 10+ hours a week you currently spend re-explaining yourself to your tools.
+    </p>
+    <div class="hero-actions">
+      <a href="#go" class="btn btn-mint">Start 7-day free trial</a>
+      <a href="#compare" class="btn btn-ghost">See the difference</a>
+    </div>
+    <div style="margin-top:16px;font-family:var(--font-mono);font-size:11px;color:var(--amber);letter-spacing:0.03em;">Early access pricing — $20/mo won't last</div>
+  </div>
+
+  <div class="ctx-viz">
+    <div class="ctx-header">
+      <span>CONTEXT STREAM</span>
+      <div class="ctx-status">
+        <div class="ctx-status-dot"></div>
+        LIVE
+      </div>
+    </div>
+    <div class="ctx-body">
+      <ul class="ctx-stream">
+        <li class="ctx-event">
+          <span class="ctx-time">14:32</span>
+          <span class="ctx-content"><strong>VS Code</strong> — editing oracle.sol, prediction-market project</span>
+          <span class="ctx-tag-pill tag-deep">deep work</span>
+        </li>
+        <li class="ctx-event">
+          <span class="ctx-time">14:28</span>
+          <span class="ctx-content"><strong>Chrome</strong> — Kalshi API docs / market resolution endpoint</span>
+          <span class="ctx-tag-pill tag-session">session</span>
+        </li>
+        <li class="ctx-event">
+          <span class="ctx-time">14:15</span>
+          <span class="ctx-content"><strong>Figma</strong> — dashboard wireframes, component library</span>
+          <span class="ctx-tag-pill tag-session">session</span>
+        </li>
+        <li class="ctx-event">
+          <span class="ctx-time">14:02</span>
+          <span class="ctx-content"><strong>Notion</strong> — sprint backlog, moved 3 items to "in progress"</span>
+          <span class="ctx-tag-pill tag-switch">context switch</span>
+        </li>
+        <li class="ctx-event">
+          <span class="ctx-time">13:48</span>
+          <span class="ctx-content"><strong>Terminal</strong> — git push origin feat/tick-normalization</span>
+          <span class="ctx-tag-pill tag-deep">deep work</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PROOF BAR -->
+<div class="proof-bar">
+  <div class="proof-bar-inner">
+    <div class="proof-stat">
+      <div class="proof-stat-value">10+</div>
+      <div class="proof-stat-label">Hours saved / week</div>
+    </div>
+    <div class="proof-stat">
+      <div class="proof-stat-value">0</div>
+      <div class="proof-stat-label">Prompts needed</div>
+    </div>
+    <div class="proof-stat">
+      <div class="proof-stat-value">5 min</div>
+      <div class="proof-stat-label">Setup time</div>
+    </div>
+    <div class="proof-beta-tag">Early access — limited spots</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<section class="how" id="how">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">01 — SETUP</span>
+      <h2 class="section-title">Install once. Your Claw<br>remembers everything after.</h2>
+    </div>
+    <div class="steps-row">
+      <div class="step-card">
+        <div class="step-num">01</div>
+        <div class="step-icon-wrap">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 1a5 5 0 015 5v2a5 5 0 01-10 0V6a5 5 0 015-5z" stroke="#00FFB2" stroke-width="1.5" fill="none"/>
+            <circle cx="9" cy="6.5" r="1.5" fill="#00FFB2"/>
+            <path d="M5 14.5c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="#00FFB2" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Create your account</h3>
+        <p>Sign up on ToggleX. No credit card required — your 7-day free trial starts immediately. Your data stays under your control.</p>
+        <div class="step-est">~ 30 SECONDS</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">02</div>
+        <div class="step-icon-wrap">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="3" width="14" height="12" rx="2" stroke="#FFAA00" stroke-width="1.5" fill="none"/>
+            <path d="M6 9l2 2 4-4" stroke="#FFAA00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>Install the extension</h3>
+        <p>Add ToggleX to Chrome. It runs silently — capturing your activity across tabs, apps, and tools, then structuring it into sessions and projects.</p>
+        <div class="step-est">~ 1 MINUTE</div>
+      </div>
+      <div class="step-card">
+        <div class="step-num">03</div>
+        <div class="step-icon-wrap">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="5.5" cy="9" r="3" stroke="#648CFF" stroke-width="1.5" fill="none"/>
+            <circle cx="12.5" cy="9" r="3" stroke="#648CFF" stroke-width="1.5" fill="none"/>
+            <path d="M8.5 9h1" stroke="#648CFF" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>Connect to OpenClaw</h3>
+        <p>Install the ToggleX skill in your Claw config. Your agent gets a live feed of your work context — projects, focus time, intent signals.</p>
+        <div class="step-est">~ 2 MINUTES</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AUTOPILOT -->
+<section class="autopilot" id="autopilot">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">02 — AUTOPILOT</span>
+      <h2 class="section-title">Your agent works while you don't.<br>Only ToggleX makes this possible.</h2>
+      <p class="autopilot-subtitle">No other skill gives your Claw enough context to act on its own. ToggleX runs cron jobs and event triggers that deliver real insights to your Discord or Telegram — without you typing a single prompt.</p>
+    </div>
+
+    <div class="ap-cards">
+
+      <!-- Daily Digest -->
+      <div class="ap-card">
+        <div class="ap-meta">
+          <div class="ap-trigger">
+            <span class="ap-trigger-dot cron"></span>
+            Cron · every day at 6:00 PM
+          </div>
+          <h3>Daily Digest</h3>
+          <p>End-of-day report dropped into your DMs. What you did, how deep you went, what's left open. <span style="color:var(--mint);">Replaces 15 min of manual standup prep.</span></p>
+          <div class="ap-no-prompt">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v4l2.5 1.5" stroke="#00FFB2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="5" r="4" stroke="#00FFB2" stroke-width="1.2" fill="none"/></svg>
+            Zero prompts required
+          </div>
+        </div>
+        <div class="ap-message-area">
+          <div class="ap-msg-header">
+            <div class="ap-msg-avatar">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 0L8.8 5.2L14 7L8.8 8.8L7 14L5.2 8.8L0 7L5.2 5.2L7 0Z" fill="#00FFB2"/></svg>
+            </div>
+            <span class="ap-msg-name">Claw</span>
+            <span class="ap-msg-badge">BOT</span>
+            <span class="ap-msg-time">Today at 6:00 PM</span>
+          </div>
+          <div class="ap-msg-body">
+            <span class="dim">Here's your day —</span><br><br>
+            <span class="hl">3 deep work sessions</span> <span class="dim">·</span> <span class="val">5.2 hours total</span><br>
+            <span class="dim">Shipped</span> tick-size normalization branch <span class="dim">→</span> merged to main<br>
+            <span class="dim">Reviewed</span> 2 PRs on dashboard repo<br>
+            <span class="dim">Updated</span> sprint backlog in Notion <span class="dim">(moved 3 items to done)</span><br>
+            <span class="dim">Left open:</span> <span class="warn">Figma settings page redesign</span> <span class="dim">— 45m in, not finished</span><br><br>
+            <div>
+              <span class="ap-msg-stat"><span class="dim">Focus</span> <span class="val">68%</span></span>
+              <span class="ap-msg-stat"><span class="dim">Switches</span> <span class="val">12</span></span>
+              <span class="ap-msg-stat"><span class="dim">Deepest</span> <span class="val">1h 48m</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stale Project Nudge -->
+      <div class="ap-card">
+        <div class="ap-meta">
+          <div class="ap-trigger">
+            <span class="ap-trigger-dot event"></span>
+            Event · project idle > 48h
+          </div>
+          <h3>Stale Project Nudge</h3>
+          <p>Your agent notices a project went cold and pings you. Like a coworker who actually pays attention. <span style="color:var(--mint);">Catches dropped balls before they become fires.</span></p>
+          <div class="ap-no-prompt">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v4l2.5 1.5" stroke="#00FFB2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="5" r="4" stroke="#00FFB2" stroke-width="1.2" fill="none"/></svg>
+            Zero prompts required
+          </div>
+        </div>
+        <div class="ap-message-area">
+          <div class="ap-msg-header">
+            <div class="ap-msg-avatar">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 0L8.8 5.2L14 7L8.8 8.8L7 14L5.2 8.8L0 7L5.2 5.2L7 0Z" fill="#00FFB2"/></svg>
+            </div>
+            <span class="ap-msg-name">Claw</span>
+            <span class="ap-msg-badge">BOT</span>
+            <span class="ap-msg-time">Today at 9:15 AM</span>
+          </div>
+          <div class="ap-msg-body">
+            <span class="dim">Heads up —</span> <span class="warn">Landing page deploy</span> <span class="dim">has been sitting idle for 3 days.</span><br><br>
+            <span class="dim">Last session:</span> Sunday, 2h 10m<br>
+            <span class="dim">You were editing</span> HTML assets from frertommy.github.io<br>
+            <span class="dim">Status:</span> <span class="warn">~80% done</span> <span class="dim">— responsiveness testing left</span><br><br>
+            <span class="dim">This was blocking the Toggle launch. Want me to pull up where you left off?</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Context Switch Alert -->
+      <div class="ap-card">
+        <div class="ap-meta">
+          <div class="ap-trigger">
+            <span class="ap-trigger-dot alert"></span>
+            Event · focus score drops below 30%
+          </div>
+          <h3>Context-Switch Alert</h3>
+          <p>You've been tab-hopping for 20 minutes. Your agent steps in before the afternoon is gone. <span style="color:var(--mint);">Recovers ~2 hours of lost focus per week.</span></p>
+          <div class="ap-no-prompt">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1v4l2.5 1.5" stroke="#00FFB2" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="5" r="4" stroke="#00FFB2" stroke-width="1.2" fill="none"/></svg>
+            Zero prompts required
+          </div>
+        </div>
+        <div class="ap-message-area">
+          <div class="ap-msg-header">
+            <div class="ap-msg-avatar">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 0L8.8 5.2L14 7L8.8 8.8L7 14L5.2 8.8L0 7L5.2 5.2L7 0Z" fill="#00FFB2"/></svg>
+            </div>
+            <span class="ap-msg-name">Claw</span>
+            <span class="ap-msg-badge">BOT</span>
+            <span class="ap-msg-time">Today at 2:42 PM</span>
+          </div>
+          <div class="ap-msg-body">
+            <span class="alert">You've switched between 8 tabs in the last 22 minutes</span> <span class="dim">without going deep on any of them.</span><br><br>
+            <span class="dim">Your focus score just dropped to</span> <span class="alert">18%</span><br><br>
+            <span class="dim">Your most recent meaningful session was</span> <span class="hl">Kalshi API integration</span> <span class="dim">at 1:55 PM.</span><br>
+            <span class="dim">Want me to close the noise and help you lock back into that?</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- COMPARE -->
+<section class="compare" id="compare">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">03 — THE DIFFERENCE</span>
+      <h2 class="section-title" style="font-size: clamp(22px, 3vw, 36px);">Same agent. Same prompt.<br>Completely different output.</h2>
+    </div>
+    <div class="compare-list" style="margin-top: -16px;">
+
+      <!-- Scenario 1 -->
+      <div class="compare-row">
+        <div class="compare-scenario-label">Scenario: Daily standup prep</div>
+        <div class="compare-cell">
+          <div class="compare-cell-tag">
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#333"/></svg>
+            Without ToggleX
+          </div>
+          <div class="compare-prompt"><span class="prompt-arrow">›</span> "What did I get done yesterday?"</div>
+          <div class="compare-response">I'm not sure — I don't have access to your work history. Can you walk me through what you remember doing, and I can help you organize it into a standup update?</div>
+        </div>
+        <div class="compare-cell is-after">
+          <div class="compare-cell-tag">
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#00FFB2"/></svg>
+            With ToggleX
+          </div>
+          <div class="compare-prompt"><span class="prompt-arrow">›</span> "What did I get done yesterday?"</div>
+          <div class="compare-response">Yesterday you had 3 deep work sessions (4.8h total). You shipped the tick-size normalization branch, reviewed 2 PRs on the dashboard repo, updated the sprint backlog in Notion, and spent 45min in Figma on the settings page redesign. Want me to format that as a standup update?</div>
+        </div>
+      </div>
+
+      <!-- Scenario 2 -->
+      <div class="compare-row">
+        <div class="compare-scenario-label">Scenario: Priority management</div>
+        <div class="compare-cell">
+          <div class="compare-cell-tag">
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#333"/></svg>
+            Without ToggleX
+          </div>
+          <div class="compare-prompt"><span class="prompt-arrow">›</span> "What should I focus on today?"</div>
+          <div class="compare-response">That depends on your priorities and deadlines. What projects are you currently working on? What's most urgent? I can help you prioritize once I know your current workload.</div>
+        </div>
+        <div class="compare-cell is-after">
+          <div class="compare-cell-tag">
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="#00FFB2"/></svg>
+            With ToggleX
+          </div>
+          <div class="compare-prompt"><span class="prompt-arrow">›</span> "What should I focus on today?"</div>
+          <div class="compare-response">You have 3 active projects. The landing page deploy has been stalled for 2 days — you last touched the HTML assets on Sunday. The Kalshi integration is mid-flow with an open bug. And you have an unfinished Figma review from yesterday. I'd suggest closing the landing page deploy first since it's blocking, then picking up the Kalshi auth issue. Want me to set that up?</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AGENTIFY -->
+<section class="agentify" id="agentify">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-num">04 — AGENTIFY</span>
+      <h2 class="section-title">Ask your Claw what to automate.<br>It already knows.</h2>
+      <p class="agentify-subtitle">Your agent has weeks of structured work history. Just ask — it'll find the repetitive workflows you don't even notice anymore and build the automation for you. No other skill on ClawHub has the data to answer this question.</p>
+    </div>
+
+    <div class="af-demo">
+      <div class="af-header">
+        <span>WORKFLOW ANALYSIS</span>
+        <span style="color: var(--amber);">1 automation opportunity</span>
+      </div>
+
+      <!-- Phase 1: Ask -->
+      <div class="af-phase">
+        <div class="af-phase-label observe">
+          <span class="af-phase-num">1</span>
+          ASK — you prompt your agent
+        </div>
+        <div style="padding: 8px 12px; background: var(--surface-2); border-radius: 5px; font-size: 12px; color: var(--text);">
+          <span style="color: var(--mint); margin-right: 8px;">›</span> "What repetitive stuff am I doing that you could automate?"
+        </div>
+      </div>
+
+      <!-- Phase 2: Analyze -->
+      <div class="af-phase">
+        <div class="af-phase-label detect">
+          <span class="af-phase-num">2</span>
+          ANALYZE — your agent scans your work history
+        </div>
+        <div class="af-activity-list">
+          <div class="af-activity">
+            <span class="time">Mon 9:02</span>
+            <span><span class="app">GitHub</span> — check PR notifications on dashboard repo</span>
+          </div>
+          <div class="af-activity">
+            <span class="time">Mon 9:04</span>
+            <span><span class="app">GitHub</span> — read diff, copy reviewer comments</span>
+          </div>
+          <div class="af-activity">
+            <span class="time">Mon 9:06</span>
+            <span><span class="app">Notion</span> — paste comments into sprint standup notes</span>
+          </div>
+          <div class="af-activity">
+            <span class="time">Mon 9:09</span>
+            <span><span class="app">Slack</span> — post summary in #dev-updates</span>
+            <span class="repeated">3× this week</span>
+          </div>
+        </div>
+        <div class="af-pattern" style="margin-top: 10px;">
+          <span class="dim">I found a pattern:</span> every weekday morning you check GitHub PR notifications → copy review comments → paste into Notion standup notes → summarize in Slack #dev-updates. <span class="dim">Avg. time spent:</span> 12 minutes. <span class="dim">Detected on:</span> Mon, Wed, Thu.
+        </div>
+      </div>
+
+      <!-- Phase 3: Propose -->
+      <div class="af-phase">
+        <div class="af-phase-label propose">
+          <span class="af-phase-num">3</span>
+          PROPOSE — your agent builds the automation
+        </div>
+        <div class="af-proposal">
+          <div class="af-proposal-msg">
+            <div class="af-proposal-avatar">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 0L8.8 5.2L14 7L8.8 8.8L7 14L5.2 8.8L0 7L5.2 5.2L7 0Z" fill="#00FFB2"/></svg>
+            </div>
+            <div class="af-proposal-body">
+              I can automate this into a pipeline that runs at <span class="hl">8:55 AM on weekdays</span>:<br><br>
+              <div class="af-pipeline">
+                <span class="af-pipe-step"><span class="icon">→</span> Fetch open PRs</span>
+                <span class="af-pipe-arrow">›</span>
+                <span class="af-pipe-step"><span class="icon">→</span> Extract comments</span>
+                <span class="af-pipe-arrow">›</span>
+                <span class="af-pipe-step"><span class="icon">→</span> Write to Notion</span>
+                <span class="af-pipe-arrow">›</span>
+                <span class="af-pipe-step"><span class="icon">→</span> Post in Slack</span>
+              </div>
+              <br>
+              <span class="dim">You'd save ~12 min/day. Want me to set this up?</span>
+              <div class="af-proposal-actions">
+                <button class="af-btn-yes">Yes, automate it</button>
+                <button class="af-btn-no">Not now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials" id="testimonials">
+  <div class="container">
+    <div class="section-head" style="text-align: center;">
+      <span class="section-num">05 — EARLY USERS</span>
+      <h2 class="section-title">What people are saying</h2>
+    </div>
+    <div class="testimonial-grid">
+      <div class="testimonial-placeholder">Your testimonial here — join the beta and be featured</div>
+      <div class="testimonial-placeholder">Your testimonial here — join the beta and be featured</div>
+      <div class="testimonial-placeholder">Your testimonial here — join the beta and be featured</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="section-head" style="text-align: center;">
+      <span class="section-num">06 — PRICING</span>
+      <h2 class="section-title">Full context. Simple pricing.</h2>
+      <p style="color:var(--text-2);font-size:14px;margin-top:8px;">Most productivity tools charge $30+/mo and don't even talk to your agent.<br>This is the entire context layer for less than an hour of your time.</p>
+    </div>
+    <div class="price-cards">
+      <!-- Monthly -->
+      <div class="price-box">
+        <div class="price-top">
+          <div class="price-label">Monthly</div>
+          <div class="price-value">$20 <span>/ mo</span></div>
+          <span class="price-trial-tag">7 days free — no card required</span>
+        </div>
+        <div class="price-bottom">
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Ambient activity capture
+          </div>
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Real-time context feed to OpenClaw
+          </div>
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Autopilot + Agentify
+          </div>
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Full data control
+          </div>
+          <a href="#go" class="btn btn-mint" style="font-size: 13px; padding: 12px 0; width: 100%; margin-top: 8px;">Start free trial</a>
+        </div>
+      </div>
+
+      <!-- Yearly -->
+      <div class="price-box featured">
+        <span class="price-save-tag">SAVE 17%</span>
+        <div class="price-top">
+          <div class="price-label">Yearly</div>
+          <div class="price-value">$200 <span>/ yr</span></div>
+          <div class="price-sub">$16.67/mo · billed annually</div>
+          <span class="price-trial-tag">7 days free — no card required</span>
+        </div>
+        <div class="price-bottom">
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Everything in Monthly
+          </div>
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Priority support
+          </div>
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Early access to new features
+          </div>
+          <div class="feature-row">
+            <div class="feature-check">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5L4 7.5L8 3" stroke="#00FFB2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            Save $40/year
+          </div>
+          <a href="#go" class="btn btn-mint" style="font-size: 13px; padding: 12px 0; width: 100%; margin-top: 8px;">Start free trial</a>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:24px;">
+      <p style="font-family:var(--font-mono);font-size:11px;color:var(--amber);letter-spacing:0.03em;">This is early access pricing. It will increase after beta.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<section class="final-cta" id="go">
+  <h2>You just scrolled past 10 hours<br>of your week back.</h2>
+  <p>7-day free trial. No card. Takes 5 minutes. Your Claw starts seeing everything today.</p>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <a href="https://x.toggle.pro" class="btn btn-mint" style="font-size: 15px; padding: 16px 36px;">Start free trial</a>
+  </div>
+  <div style="margin-top:48px;padding-top:32px;border-top:1px solid var(--border);max-width:480px;margin-left:auto;margin-right:auto;">
+    <p style="font-size:13px;color:var(--text-3);margin-bottom:14px;">Not ready yet? Get notified when we ship new automations.</p>
+    <div class="email-capture">
+      <input type="email" placeholder="you@email.com" />
+      <button type="button">Notify me</button>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-note">
+    <p>ToggleX is a standalone ambient work tracker at <a href="https://x.toggle.pro" style="color:var(--mint);text-decoration:none;">x.toggle.pro</a>. The OpenClaw integration is one layer on top of it. When you subscribe, you get both — the full ToggleX dashboard and the OpenClaw context skill.</p>
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+      <p style="color:var(--text);font-weight:500;margin-bottom:6px;">Running a team?</p>
+      <p>Deploy ToggleX across your company and we'll tell you exactly what to automate. Same extension, org-wide insights.</p>
+      <a href="https://cal.com/togglex" style="display:inline-block;margin-top:12px;font-family:var(--font-mono);font-size:12px;color:var(--mint);text-decoration:none;border:1px solid rgba(0,255,178,0.3);padding:8px 20px;border-radius:6px;transition:all 0.15s;">Book a call →</a>
+    </div>
+  </div>
+  <div class="footer-inner">
+    <div class="footer-left">© 2026 TOGGLE PRO</div>
+    <div class="footer-links">
+      <a href="https://x.toggle.pro">Dashboard</a>
+      <a href="#">OpenClaw Skill</a>
+      <a href="https://x.com/toggle">Twitter</a>
+      <a href="#">GitHub</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
